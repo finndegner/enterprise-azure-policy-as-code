@@ -1,15 +1,15 @@
 function Build-AssignmentIdentityChanges {
     [CmdletBinding()]
     param (
-        $existing,
-        $assignment,
-        $replacedAssignment,
-        $deployedRoleAssignmentsByPrincipalId
+        $Existing,
+        $Assignment,
+        $ReplacedAssignment,
+        $DeployedRoleAssignmentsByPrincipalId
     )
 
-    $existingIdentity = $existing.identity
-    $hasExistingIdentity = $null -ne $existing -and $null -ne $existingIdentity -and $existingIdentity.type -ne "None"
-    $identityRequired = $null -ne $assignment -and $assignment.identityRequired
+    $existingIdentity = $Existing.identity
+    $hasExistingIdentity = $null -ne $Existing -and $null -ne $existingIdentity -and $existingIdentity.type -ne "None"
+    $identityRequired = $null -ne $Assignment -and $Assignment.identityRequired
 
     $existingIdentityType = "None"
     $existingPrincipalId = $null
@@ -20,9 +20,10 @@ function Build-AssignmentIdentityChanges {
     $definedIdentity = $null
     $definedIdentityType = "None"
     $definedUserAssignedIdentity = $null
-    $definedLocation = $null
     $requiredRoleDefinitions = @()
 
+    $existingLocation = $Existing.location 
+    $definedLocation = "global"
     if ($hasExistingIdentity) { 
         $existingIdentityType = $existingIdentity.type 
         if ($existingIdentityType -eq "UserAssigned") { 
@@ -33,22 +34,22 @@ function Build-AssignmentIdentityChanges {
         }
         else { 
             $existingPrincipalId = $existingIdentity.principalId 
-        } $existingLocation = $existing.location 
-        if ($deployedRoleAssignmentsByPrincipalId.ContainsKey($existingPrincipalId)) { 
-            $existingRoleAssignments = $deployedRoleAssignmentsByPrincipalId.$existingPrincipalId 
+        } 
+        if ($DeployedRoleAssignmentsByPrincipalId.ContainsKey($existingPrincipalId)) { 
+            $existingRoleAssignments = $DeployedRoleAssignmentsByPrincipalId.$existingPrincipalId 
         } 
     } 
     if ($identityRequired ) { 
-        $definedIdentity = $assignment.identity 
+        $definedIdentity = $Assignment.identity 
         $definedIdentityType = $definedIdentity.type 
         if ($definedIdentityType -eq "UserAssigned") { 
             $definedUserAssignedIdentity = $definedIdentity.userAssignedIdentities.GetEnumerator().Name
         } 
-        $definedLocation = $assignment.managedIdentityLocation 
-        $requiredRoleDefinitions = $assignment.metadata.roles 
+        $definedLocation = $Assignment.managedIdentityLocation
+        $requiredRoleDefinitions = $Assignment.metadata.roles 
     }
 
-    $replaced = $replacedAssignment
+    $replaced = $ReplacedAssignment
     $isNewOrDeleted = $false
     $isUserAssigned = $false
     $changedIdentityStrings = @()
@@ -56,7 +57,7 @@ function Build-AssignmentIdentityChanges {
     $removedList = [System.Collections.ArrayList]::new()
     if ($hasExistingIdentity -or $identityRequired) {
         # need to check if either an existing identity or a newly added identity or existing and required identity
-        if ($null -ne $existing -and $null -ne $assignment) {
+        if ($null -ne $Existing -and $null -ne $Assignment) {
             # this is an update, not a delete or new Assignment
             if ($hasExistingIdentity -xor $identityRequired) {
                 # change (xor) in need for an identity, determine which one
@@ -107,8 +108,8 @@ function Build-AssignmentIdentityChanges {
                     foreach ($requiredRoleDefinition in $requiredRoleDefinitions) {
                         $requiredRoleDefinitionId = $requiredRoleDefinition.roleDefinitionId.Split('/')[-1]
                         $addedEntry = @{
-                            assignmentId     = $assignment.id
-                            displayName      = $assignment.DisplayName
+                            assignmentId     = $Assignment.id
+                            displayName      = $Assignment.DisplayName
                             scope            = $requiredRoleDefinition.scope
                             principalId      = $null
                             objectType       = "ServicePrincipal"
@@ -137,15 +138,15 @@ function Build-AssignmentIdentityChanges {
                         $deployedRoleDefinitionId = $deployedRoleAssignment.roleDefinitionId
                         if (($deployedScope -eq $requiredRoleDefinition.scope) -and ($deployedRoleDefinitionId -eq $requiredRoleDefinitionId)) {
                             $matchFound = $true
-                            # nNothing to do
+                            # nothing to do
                             break
                         }
                     }
                     if (!$matchFound) {
                         # add role
                         $addedEntry = @{
-                            assignmentId     = $assignment.id
-                            displayName      = $assignment.DisplayName
+                            assignmentId     = $Assignment.id
+                            displayName      = $Assignment.DisplayName
                             principalId      = $principalIdForAddedRoles
                             objectType       = "ServicePrincipal"
                             scope            = $requiredRoleDefinition.scope
@@ -181,7 +182,21 @@ function Build-AssignmentIdentityChanges {
             }
         }
     }
+    elseif ($existingLocation -ne $definedLocation) {
+        # location change
+        if ($null -eq $definedLocation) {
+            $definedLocation = "."
+        }
+        $changedIdentityStrings += "identityLocation $existingLocation->$definedLocation"
+        $replaced = $true
+    }
 
+if ($addedList.Count -gt 0) {
+        $changedIdentityStrings += "addedRoleAssignments"
+    }
+    if ($removedList.Count -gt 0) {
+        $changedIdentityStrings += "removedRoleAssignments"
+    }
     $numberOfChanges = $addedList.Count + $removedList.Count
     return @{
         replaced               = $replaced

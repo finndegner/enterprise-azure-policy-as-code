@@ -4,7 +4,9 @@ This page covers the general CI/CD documentation, as well as, Azure DevOps CI/CD
 
 This repository contains starter pipelines
 
-* Azure DevOps
+* Azure DevOps (Single Tenant)
+* Azure DevOps (Multi Tenant)
+* Azure DevOps (Simplified)
 * [GitHub Actions](./github-actions.md). 
 
 
@@ -115,6 +117,13 @@ Read the following Microsoft instructions to [learn more about MS Graph Applicat
 2. [Configure permissions for Microsoft Graph](<https://learn.microsoft.com/en-us/graph/auth-v2-service#2-configure-permissions-for-microsoft-graph>)
 3. [Get administrator consent](https://learn.microsoft.com/en-us/graph/auth-v2-service#3-get-administrator-consent)
 
+## Azure DevOps (Simplified Pipeline)
+
+If you have less complex requirements for a pipeline deployment using Azure DevOps you can utilize the ```simplified-pipeline.yaml``` file and the ```templates``` folder in the ```StarterKit``` folder to quickly get started in Azure Pipelines.
+
+
+This template requires the creation of two environments in Azure Pipelines and can easily have approvals added for deployment control. It is best suited to a single environment deployment but can be easily customized. 
+
 ### Custom EPAC Resource Policy Reader Role
 
 EPAC uses a set of Service Principals to execute the Plan phase which do not require as many rights as those that deploy policy assets into Azure. In version 6, we introduced a **breaking change** that leveraged MS Graph API to retrieve information about the current Azure configuration. This both improves performance, and moves us to the replacement technology for the older Azure Graph API. The addition of **Microsoft.Graph/Operations/read** is the change which enables this functionality.
@@ -132,12 +141,13 @@ The list of roles, and their descriptions is available online [here](https://lea
         "permissions": [
             {
                 "actions": [
-                    "Microsoft.Authorization/policySetDefinitions/read",
-                    "Microsoft.Authorization/policyAssignments/read",
-                    "Microsoft.Authorization/policyDefinitions/read",
-                    "Microsoft.Authorization/policyExemptions/read",
+                    "Microsoft.Authorization/policyassignments/read",
+                    "Microsoft.Authorization/policydefinitions/read",
+                    "Microsoft.Authorization/policyexemptions/read",
+                    "Microsoft.Authorization/policysetdefinitions/read",
                     "Microsoft.PolicyInsights/*",
-                    "Microsoft.Management/register/action"
+                    "Microsoft.Management/register/action",
+                    "Microsoft.Management/managementGroups/read"
                 ],
                 "notActions": [],
                 "dataActions": [],
@@ -173,9 +183,9 @@ While this script intended to be used, they can be run manually to create a semi
 
 |Parameter | Explanation |
 |----------|-------------|
-| `pacEnvironmentSelector` | Selects the EPAC environment for this plan. If omitted, interactively prompts for the value. |
-| `definitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain file `global-settings.jsonc`. |
-| `interactive` | Defaults to `$false`. |
+| `PacEnvironmentSelector` | Selects the EPAC environment for this plan. If omitted, interactively prompts for the value. |
+| `DefinitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain file `global-settings.jsonc`. |
+| `Interactive` | Defaults to `$false`. |
 
 ### Build-DeploymentPlans.ps1
 
@@ -185,8 +195,8 @@ In addition to the [common parameters](#common-script-parameters), these paramet
 
 |Parameter | Explanation |
 |----------|-------------|
-| `outputFolder` | Output folder path for plan files. Defaults to environment variable `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
-| `devOpsType` | If set, outputs variables consumable by conditions in a DevOps pipeline. Default: not set. |
+| `OutputFolder` | Output folder path for plan files. Defaults to environment variable `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
+| `DevOpsType` | If set, outputs variables consumable by conditions in a DevOps pipeline. Default: not set. |
 
 ### Deploy-PolicyPlan.ps1
 
@@ -194,7 +204,7 @@ Deploys Policies, Policy Sets, Policy Assignments, and Policy Exemptions at thei
 
 |Parameter | Explanation |
 |----------|-------------|
-| `inputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
+| `InputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
 
 ### Deploy-RolesPlan.ps1
 
@@ -202,7 +212,7 @@ Creates the role assignments for the Managed Identities required for `DeployIfNo
 
 |Parameter | Explanation |
 |----------|-------------|
-| `inputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
+| `InputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
 
 ## Consuming Excel Files
 

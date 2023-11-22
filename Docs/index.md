@@ -12,7 +12,7 @@ Main features include:
 - PowerShell Module
 - Integration with Azure Landing Zone recommended policies
 - Starter Kit with examples
-- Schema to provide Intellisense for VS Code development (Preview)
+- Schema to provide Intellisense for VS Code development
 
 ## Who Should use EPAC?
 
@@ -22,6 +22,10 @@ EPAC can be used by small organizations with a small number of Policies, Policy 
 
 For extremely small Azure customers with one or two subscriptions Microsoft Defender for Cloud automated Policy Assignments for built-in Policies is sufficient.
 
+## Major Change in v8.0.0
+
+Starting with v8.0.0, Enterprise Policy as Code (EPAC) is tracking the usage using Customer Usage Attribution (PID). For details and how to **opt-out** see [Usage Tracking](usage-tracking.md).
+
 ## Project Links
 
 - [GitHub Repo](https://github.com/Azure/enterprise-azure-policy-as-code)
@@ -29,11 +33,22 @@ For extremely small Azure customers with one or two subscriptions Microsoft Defe
 - [Starter Kit](https://github.com/Azure/enterprise-azure-policy-as-code/tree/main/StarterKit)
 - [Enterprise Policy as Code PowerShell Module](https://www.powershellgallery.com/packages/EnterprisePolicyAsCode)
 - [Azure Enterprise Policy as Code – A New Approach](https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/azure-enterprise-policy-as-code-a-new-approach/ba-p/3607843)
-- [Azure Enterprise Policy as Code – Azure Landing Zones Integration](https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/azure-enterprise-policy-as-code-azure-landing-zones-integration/ba-p/3607844)
+- [Azure Enterprise Policy as Code – Azure Landing Zones Integration](https://techcommunity.microsoft.com/t5/core-infrastructure-and-security/azure-enterprise-policy-as-code-azure-landing-zones-integration/ba-p/3642784)
 
 ## Microsoft's Security & Compliance for Cloud Infrastructure
 
 This `enterprise-policy-as-code` **(EPAC)** repo has been developed in partnership with the Security & Compliance for Cloud Infrastructure (S&C4CI) offering available from Microsoft's Industry Solutions (Consulting Services). Microsoft Industry Solutions can assist you with securing your cloud. S&C4CI improves your new or existing security posture in Azure by securing platforms, services, and workloads at scale.
+
+## Breaking changes in v7.0
+
+Script `Export-AzPolicyResources` replaces `Build-PolicyDefinitionFolder` with a [substantial increase in capability](extract-existing-policy-resources.md). It has a round-trip capability supporting the extract to be used in the build `Definitions`.
+
+Introducing a new approach using PowerShell Module. This not (actually) breaking existing implementation since you can continue as is; however, for a simplified usage of EPAC, the PowerShell module is the best approach.
+
+The move from synchronizing your repo with the GitHub repo to a PowerShell module necessitated the reworking of the default values for `Definitions`, `Output`, and `Input` folders. Many scripts use parameters for definitions, input and output folders. They default to the current directory, which should be the root of the repo. make sure that the current directory is the root of your repo. We recommend that you do one of the following approaches instead of accepting the default:
+
+- Set the environment variables `PAC_DEFINITIONS_FOLDER`, `PAC_OUTPUT_FOLDER`, and `PAC_INPUT_FOLDER`.
+- Use the script parameters `-DefinitionsRootFolder`, `-OutputFolder`, and `-InputFolder` (They vary by script).
 
 ## Terminology
 
@@ -63,6 +78,20 @@ Since EPAC is based on PowerShell scripts, any CI/CD tool with the ability to ex
 
 EPAC supports single and multi-tenant deployments from a single source. In most cases you should have a fully or partially isolated area for Policy development and testing, such as a Management Group. An entire tenant can be used; however, it is not necessary since EPAC has sophisticated partitioning capabilities.
 
+In some multi-tenant implementations, not all policies, policy sets, and/or assignments will function in all tenants, usually due to either built-in policies that don't exist in some tenant types or unavailable resource providers.  In order to facilitate multi-tenant deployments in these scenarios, utilize the "   epacCloudEnvironments" property to specify which cloud type a specific file should be considered in.  For example in order to have a policy definition deployed only to epacEnvironments that are China cloud tenants, add a metadata property like this to that definition (or definitionSet) file:
+
+    "metadata": {
+      "epacCloudEnvironments": [
+        "AzureChinaCloud"
+      ]
+    },
+
+For assignment files, this is a top level property on the assignment's root node:
+
+    "nodeName": "/root",
+    "epacCloudEnvironments": [
+        "AzureChinaCloud"
+    ],
 ## Operational Scripts
 
 Scripts to simplify [operational task](operational-scripts.md) are provided. Examples are:
@@ -79,7 +108,7 @@ EPAC has a concept of an environment identified by a string (unique per reposito
 
 - `cloud` - to select commercial or sovereign cloud environments.
 - `tenantId` - enables multi-tenant scenarios.
-- `rootDefinitionScope` - scope for Policy and Policy Set definitions.
+- `rootDefinitionScope` - scope for custom Policy and Policy Set definition deployment.
 - Optional: define `desiredState`
 
 !!! note
@@ -147,7 +176,7 @@ Enterprise Policy-as-Code (EPAC), AzAdvertizer and Azure Governance Visualizer (
 
 - [Enterprise Policy-as-Code (aka EPAC)](https://github.com/Azure/enterprise-azure-policy-as-code) - EPAC is an open source community project that provides a CI/CD automation solution for the development, deployment, management and reporting of Azure policy at scale. EPAC can maintain a policy "desired state" to provide a high level of assurance in highly controlled and sensitive environments, and a means of managing policy exemptions. While it uses standard JSON file structure for its repositories, operation and maintenance of policy and policy sets can actually be done via CSV files, reducing the skill expertise needed to operate the solution once implemented.
 
-### Functional Comparison
+
 
 The table below provides a summary functions/features comparison between the three solutions/tools.
 
@@ -156,6 +185,10 @@ The table below provides a summary functions/features comparison between the thr
 | Purpose          | Detailed insight tool on released Azure public cloud governance features like current built-in polices and initiatives | Azure environment governance reporting and monitoring solution exposing tenant config/deployment detail of tenant hierarchies, RBAC assignments, policies, blueprints | Azure environment automated policy governance deployment, management and reporting solution |
 | Implementation   | hosted web service | customer deployment, interactive Azure governance management and security reporting tool | customer deployment, deployment automation and reporting tool |
 | Requirements     | browser | PowerShell 7.0.3 | PowerShell 7.3.1 |
+
+## Support
+
+Please raise issues via the [GitHub](https://github.com/Azure/enterprise-azure-policy-as-code/issues) repository.
 
 ## Contributing
 

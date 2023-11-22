@@ -1,20 +1,14 @@
 function Confirm-MetadataMatches {
     [CmdletBinding()]
     param(
-        $existingMetadataObj,
-        $definedMetadataObj
+        $ExistingMetadataObj,
+        $DefinedMetadataObj
     )
 
     $match = $false
     $changePacOwnerId = $false
-    $existingMetadata = @{}
-    if ($null -ne $existingMetadataObj) {
-        $existingMetadata = Get-DeepClone $existingMetadataObj -AsHashTable
-    }
-    $definedMetadata = @{}
-    if ($null -ne $definedMetadataObj) {
-        $definedMetadata = Get-DeepClone $definedMetadataObj -AsHashTable
-    }
+    $existingMetadata = Get-DeepClone $ExistingMetadataObj -AsHashTable
+    $definedMetadata = Get-DeepClone $DefinedMetadataObj -AsHashTable
 
     # remove system generated metadata from consideration
     if ($existingMetadata.ContainsKey("createdBy")) {
@@ -34,15 +28,15 @@ function Confirm-MetadataMatches {
     $definedPacOwnerId = $definedMetadata.pacOwnerId
     if ($existingPacOwnerId -ne $definedPacOwnerId) {
         $changePacOwnerId = $true
-        if ($definedMetadata.ContainsKey("pacOwnerId")) {
-            $definedMetadata.Remove("pacOwnerId")
-        }
-        if ($existingMetadata.ContainsKey("pacOwnerId")) {
-            $null = $existingMetadata.Remove("pacOwnerId")
-        }
+    }
+    if ($definedMetadata.ContainsKey("pacOwnerId")) {
+        $definedMetadata.Remove("pacOwnerId")
+    }
+    if ($existingMetadata.ContainsKey("pacOwnerId")) {
+        $null = $existingMetadata.Remove("pacOwnerId")
     }
     if ($existingMetadata.psbase.Count -eq $definedMetadata.psbase.Count) {
-        $match = Confirm-ObjectValueEqualityDeep $existingMetadata $definedMetadata
+        $match = Confirm-ObjectValueEqualityDeep $existingMetadata $definedMetadata -HandleRandomOrderArray
     }
 
     return $match, $changePacOwnerId

@@ -1,7 +1,8 @@
 {
+    "$schema": "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-assignment-schema.json",
     "nodeName": "/Corp/",
     "scope": {
-        "tenant1": [
+        "tenant1": [ // Replace with your EPAC environment name and validate the management group listed below exists
             "/providers/Microsoft.Management/managementGroups/corp"
         ]
     },
@@ -18,7 +19,7 @@
                     },
                     "definitionEntry": {
                         "policySetName": "Deny-PublicPaaSEndpoints",
-                        "friendlyNameToDocumentIfGuid": "Deny Public PaaS Endpoints"
+                        "displayName": "Deny Public PaaS Endpoints"
                     },
                     "nonComplianceMessages": [
                         {
@@ -27,7 +28,7 @@
                     ]
                 },
                 {
-                    "nodeName": "DNZZones",
+                    "nodeName": "DNSZones",
                     "assignment": {
                         "name": "Deploy-Private-DNS-Zones",
                         "displayName": "Configure Azure PaaS services to use private DNS zones",
@@ -35,7 +36,7 @@
                     },
                     "definitionEntry": {
                         "policySetName": "Deploy-Private-DNS-Zones",
-                        "friendlyNameToDocumentIfGuid": "Deploy Private DNS Zones"
+                        "displayName": "Deploy Private DNS Zones"
                     },
                     "parameters": {
                         // Replace --DNSZonePrefix-- with a value similar to 
@@ -53,6 +54,7 @@
                         "azureCosmosTablePrivateDnsZoneId": "--DNSZonePrefix--privatelink.table.cosmos.azure.com",
                         "azureDataFactoryPrivateDnsZoneId": "--DNSZonePrefix--privatelink.datafactory.azure.net",
                         "azureDataFactoryPortalPrivateDnsZoneId": "--DNSZonePrefix--privatelink.adf.azure.com",
+                        "azureDatabricksPrivateDnsZoneId": "--DNSZonePrefix--privatelink.azuredatabricks.net",
                         "azureHDInsightPrivateDnsZoneId": "--DNSZonePrefix--privatelink.azurehdinsight.net",
                         "azureMigratePrivateDnsZoneId": "--DNSZonePrefix--privatelink.prod.migration.windowsazure.com",
                         "azureStorageBlobPrivateDnsZoneId": "--DNSZonePrefix--privatelink.blob.core.windows.net",
@@ -104,7 +106,7 @@
                         "*": [
                             {
                                 "roleDefinitionId": "/providers/microsoft.authorization/roleDefinitions/4d97b98b-1d4f-4787-a291-c67834d212e7",
-                                "scope": "/subscriptions/connectivity--subscription--id"
+                                "scope": "/subscriptions/connectivity--subscription--id" // Replace with your connectivity subscription Id
                             }
                         ]
                     }

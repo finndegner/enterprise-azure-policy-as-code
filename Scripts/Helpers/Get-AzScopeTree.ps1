@@ -1,26 +1,27 @@
 function Get-AzScopeTree {
 
     param(
-        [hashtable] $pacEnvironment
+        [hashtable] $PacEnvironment,
+        [switch] $IgnoreScopeTreeErrors
     )
 
-    $deploymentRootScope = $pacEnvironment.deploymentRootScope
-    $tenantId = $pacEnvironment.tenantId
+    $deploymentRootScope = $PacEnvironment.deploymentRootScope
+    $tenantId = $PacEnvironment.tenantId
     Write-Information ""
     Write-Information "==================================================================================================="
-    Write-Information "Get scope tree for EPAC environment '$($pacEnvironment.pacSelector)' at root scope $($deploymentRootScope -replace '/providers/Microsoft.Management','')"
+    Write-Information "Get scope tree for EPAC environment '$($PacEnvironment.pacSelector)' at root scope $($deploymentRootScope -replace '/providers/Microsoft.Management','')"
     Write-Information "==================================================================================================="
     $prefBackup = $WarningPreference
     $WarningPreference = 'SilentlyContinue'
     $scope = Split-ScopeId `
-        -scopeId $deploymentRootScope `
-        -parameterNameForManagementGroup "ManagementGroup" `
-        -parameterNameForSubscription "Subscription" `
-        -asSplat
+        -ScopeId $deploymentRootScope `
+        -ParameterNameForManagementGroup "ManagementGroup" `
+        -ParameterNameForSubscription "Subscription" `
+        -AsSplat
     $resourceContainers = Search-AzGraphAllItems `
-        -query "ResourceContainers" `
-        -scope $scope `
-        -progressItemName "resource containers"
+        -Query "ResourceContainers" `
+        -Scope $scope `
+        -ProgressItemName "resource containers"
     $WarningPreference = $prefBackup
     Write-Information ""
     Write-Information "Processing $($resourceContainers.Count) resource containers:"
@@ -127,7 +128,13 @@ function Get-AzScopeTree {
             }
             else {
                 # should not be possible
-                Write-Error "Code bug: Our root is not in this tree" -ErrorAction Stop
+                if ($IgnoreScopeTreeErrors) {
+                    Write-Error "Code bug: Our root is not in this tree" -ErrorAction SilentlyContinue
+                }
+                else {
+                    Write-Error "Code bug: Our root is not in this tree" -ErrorAction Stop
+                }
+                
             }
         }
     }
@@ -175,6 +182,30 @@ function Get-AzScopeTree {
         }
     }
     Write-Information "    Resource groups   = $($numberOfResourceGroups)"
+
+    if ($PacEnvironment.policyDefinitionsScopes.Count -gt 2) {
+        # Process policy definitions scopes
+        $numberOfPolicyDefinitionsScopes = 0
+        foreach ($policyDefinitionsScope in $PacEnvironment.policyDefinitionsScopes) {
+            if ($scopeTable.ContainsKey($policyDefinitionsScope) -or $policyDefinitionsScope -eq "") {}
+            else {
+                $scopeInformation = @{
+                    id             = $policyDefinitionsScope
+                    type           = "microsoft.management/managementgroups"
+                    name           = $policyDefinitionsScope
+                    displayName    = $policyDefinitionsScope
+                    parentList     = @{}
+                    childrenList   = @{}
+                    resourceGroups = @{}
+                    state          = $null
+                    location       = "global"
+                }
+                $null = $scopeTable.Add($policyDefinitionsScope, $scopeInformation)
+                $numberOfPolicyDefinitionsScopes++
+            }
+        }
+        Write-Information "    Policy definitions scopes = $($numberOfPolicyDefinitionsScopes)"
+    }
 
     return $scopeTable
 }

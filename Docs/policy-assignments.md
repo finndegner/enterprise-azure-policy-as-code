@@ -89,7 +89,7 @@ Each assignment assigns either a Policy or Policy Set. In EPAC this is done with
 
 Using `definitionEntryList` allows you to save on copy/paste tree branches. Without it, the number of branches would need to be duplicated as many times as the list has entries.
 
-Each entry in the list creates an Assignment at each leave of the tree. Since assignments must have unique names at a specific scope, the Assignment naming component must be amended for each list entry. In this sub-component you can decide if you want to concatenate the string by appending or prepending them by specifying `append` boolean value.
+Each entry in the list creates an Assignment at each leaf of the tree. Since assignments must have unique names at a specific scope, the Assignment naming component must be amended for each list entry. In this sub-component you can decide if you want to concatenate the string by appending or prepending them by specifying `append` boolean value.
 
 ```json
 "definitionEntryList": [
@@ -756,22 +756,24 @@ As mentioned above sometimes it is advantageous (to reduce the number of repetit
       ]
   },
   "definitionEntryList": [
-      {
-          "policyName": "rg-required-tag-dynamic-notscope",
-          "assignment": {
-              "name": "rgtag-",
-              "displayName": "Require Tag on Resource Group - ",
-              "description": "Require Tag for Resource Groups when any resource group (not listed in in excludedRg) is created or updated - "
-          }
-      },
-      {
-          "policyName": "resources-inherit-rg-tag-dynamic-notscope",
-          "assignment": {
-              "name": "taginh-",
-              "displayName": "Inherit Tag from Resource Group - ",
-              "description": "Modify Tag to comply with governance goal of enforcing Tags by inheriting Tags from RG - "
-          }
-      }
+                    {
+                    "policyName": "7ce92201-8036-4d55-938e-0dce0a5bc475",
+                    "displayName": "Require Tag on Resource Group with dynamic notScope",
+                    "assignment": {
+                        "name": "rgtag-",
+                        "displayName": "Require Tag on Resource Group - ",
+                        "description": "Require Tag for Resource Groups when any resource group (not listed in in excludedRg) is created or updated - "
+                    }
+                },
+                {
+                    "policyName": "5cc2cbfc-e306-4ec6-a141-eea3c79bb2ae",
+                    "displayName": "Inherit Tag from Resource Group with dynamic notScope",
+                    "assignment": {
+                        "name": "taginh-",
+                        "displayName": "Inherit Tag from Resource Group - ",
+                        "description": "Modify Tag to comply with governance goal of enforcing Tags by inheriting Tags from RG - "
+                    }
+                }
   ],
   "children": [
       {

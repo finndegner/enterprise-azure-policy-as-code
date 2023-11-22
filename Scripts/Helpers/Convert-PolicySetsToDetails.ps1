@@ -1,21 +1,21 @@
 function Convert-PolicySetsToDetails {
     [CmdletBinding()]
     param (
-        [hashtable] $allPolicyDefinitions,
-        [hashtable] $allPolicySetDefinitions
+        [hashtable] $AllPolicyDefinitions,
+        [hashtable] $AllPolicySetDefinitions
     )
 
     $policyDetails = @{}
-    Write-Information "Calculating effect parameters for $($allPolicyDefinitions.psbase.Count) Policies."
-    foreach ($policyId in $allPolicyDefinitions.Keys) {
-        $policy = $allPolicyDefinitions.$policyId
-        $properties = Get-PolicyResourceProperties -policyResource $policy
+    Write-Information "Calculating effect parameters for $($AllPolicyDefinitions.psbase.Count) Policies."
+    foreach ($policyId in $AllPolicyDefinitions.Keys) {
+        $policy = $AllPolicyDefinitions.$policyId
+        $properties = Get-PolicyResourceProperties -PolicyResource $policy
         $category = "Unknown"
         if ($properties.metadata -and $properties.metadata.category) {
             $category = $properties.metadata.category
         }
         $effectRawValue = $properties.policyRule.then.effect
-        $found, $effectParameterName = Get-ParameterNameFromValueString -paramValue $effectRawValue
+        $found, $effectParameterName = Get-ParameterNameFromValueString -ParamValue $effectRawValue
 
         $effectValue = $null
         $effectDefault = $null
@@ -140,11 +140,11 @@ function Convert-PolicySetsToDetails {
         $null = $policyDetails.Add($policyId, $policyDetail)
     }
 
-    Write-Information "Calculating effect parameters for $($allPolicySetDefinitions.psbase.Count) Policy Sets."
+    Write-Information "Calculating effect parameters for $($AllPolicySetDefinitions.psbase.Count) Policy Sets."
     $policySetDetails = @{}
-    foreach ($policySetId in $allPolicySetDefinitions.Keys) {
-        $policySet = $allPolicySetDefinitions.$policySetId
-        $properties = Get-PolicyResourceProperties -policyResource $policySet
+    foreach ($policySetId in $AllPolicySetDefinitions.Keys) {
+        $policySet = $AllPolicySetDefinitions.$policySetId
+        $properties = Get-PolicyResourceProperties -PolicyResource $policySet
         $category = "Unknown"
         if ($properties.metadata -and $properties.metadata.category) {
             $category = $properties.metadata.category
@@ -173,10 +173,22 @@ function Convert-PolicySetsToDetails {
                     # Effect is parameterized in Policy
                     if ($policyInPolicySetParameters.Keys -contains $effectParameterName) {
                         # Effect parameter is used by policySet
-                        $policySetLevelEffectParameter = $policyInPolicySetParameters.$effectParameterName
-                        $effectRawValue = $policySetLevelEffectParameter.value
+                        $policyInPolicySetParameter = $policyInPolicySetParameters.$effectParameterName
+                        if ($null -eq $policyInPolicySetParameter) {
+                            $key1 = $policyInPolicySetParameters.Keys | Where-Object { $_.ToLower() -eq $effectParameterName.ToLower() }
+                            Write-Debug "key '$effectParameterName' exists with a different case '$key1' in '$($policyInPolicySetParameters | ConvertTo-Json -Depth 100 -Compress)'"
+                            if ($null -ne $key1) {
+                                $policyInPolicySetParameter = $policyInPolicySetParameters.$key1
+                            }
+                            # else keep $policyInPolicySetParameter as $null
+                        }
+                        $policySetLevelEffectParameterFound = $false
+                        $policySetLevelEffectParameterName = $null
+                        if ($policyInPolicySetParameter) {
+                            $effectRawValue = $policyInPolicySetParameter.value
+                            $policySetLevelEffectParameterFound, $policySetLevelEffectParameterName = Get-ParameterNameFromValueString -ParamValue $effectRawValue
+                        }
 
-                        $policySetLevelEffectParameterFound, $policySetLevelEffectParameterName = Get-ParameterNameFromValueString -paramValue $effectRawValue
                         if ($policySetLevelEffectParameterFound) {
                             # Effect parameter is surfaced by PolicySet
                             if ($policySetParameters.Keys -contains $policySetLevelEffectParameterName) {
@@ -214,7 +226,7 @@ function Convert-PolicySetsToDetails {
                     $parameter = $policyInPolicySetParameters.$parameterName
                     $rawValue = $parameter.value
                     if ($rawValue -is [string]) {
-                        $found, $policySetParameterName = Get-ParameterNameFromValueString -paramValue $rawValue
+                        $found, $policySetParameterName = Get-ParameterNameFromValueString -ParamValue $rawValue
                         if ($found) {
                             $policySetParameter = $policySetParameters.$policySetParameterName
                             $multiUse = $false

@@ -4,7 +4,7 @@ Desired State strategy enables shared responsibility scenarios. the following do
 
 ## Use Case 1: Centralized Team
 
-This original (previously the only) use case assumes one team/repo manages all Policies in a tenant or multiple tenants. You should not have any of the following elements in `global-settings.jsonc`:
+This original (previously the only) use case assumes one team/repo manages all Policies in a tenant or multiple tenants. `global-settings.jsonc` must ***not*** contain the following entries:
 
 * `inheritedDefinitionsScopes`
 * `desiredState`
@@ -21,7 +21,7 @@ You may add the following JSON for clarity/documentation of the default behavior
 
 ```json
 "desiredState": {
-    "strategy": "full",
+    "strategy": "full"
 }
 ```
 
@@ -38,7 +38,7 @@ Repo A is managed the same as in use cases 1, 2 and 2a. Repo C sets sets the sam
 ```json
 "inheritedDefinitionsScopes": [],
 "desiredState": {
-    "strategy": "full",
+    "strategy": "full"
 }
 ```
 
@@ -49,7 +49,7 @@ While transitioning to EPAC, existing Policy resources may need to be kept. Sett
 
 ```json
 "desiredState": {
-    "strategy": "ownedOnly",
+    "strategy": "ownedOnly"
 }
 ```
 
@@ -60,41 +60,62 @@ While transitioning to EPAC, existing Policy resources may need to be kept. Sett
 
 In rare cases you may need to exclude individual child scopes, or Policy resources from management by an EPAC solution.
 
-By default, Policy Assignments at resource groups are not managed by EPAC. Prior to v6.0, managing resource groups was to expensive. If you used the `-includeResourceGroup` switch in prior versions, set `includeResourceGroups` to `true` to achieve the same effect.
+### Child Scope not Managed and Not Subject to these Policies
 
-![image.png](Images/shared-excluded.png)
+Child scope is managed by some other means. The use of a EPAC development Management Group under the same root is such an example. Another example is a child scope managed by a different organization not subject to the root scope Policies.
 
-You can exclude any combination of scopes, Policies, Policy Sets and Policy Assignments. Simple wild cards are allowed.
+You use `globalNotScopes` to exclude a child scope from management by EPAC. The following example excludes the `childScope` from management by EPAC. See also [Definitions and Global Settings](definitions-and-global-settings.md#global-settings)
+
+```json
+    "globalNotScopes": {
+        "tenant": [
+            "/providers/Microsoft.Management/managementGroups/mg-policy-as-code"
+        ]
+    },
+```
+
+### Child Scopes not Managed by any EPAC repo but Subject to these Policies
+
+This happens when EPAC `strategy` is `full` and some child scopes contain Policy resources not managed by an EPAC repo (delivered through some other deployment method). You can exclude them based on:
+
+- Scopes (Management Groups, subscriptions and Resource Groups) through `desiredState.excludedScopes`
+- Policy Definitions through `desiredState.excludedPolicyDefinitions`
+- Policy Set Definitions through `desiredState.excludedPolicySetDefinitions`
+- Policy Assignments through `desiredState.excludedPolicyAssignments`
+
+You can exclude any combination of `excludedScopes`, `excludedPolicyDefinitions`, `excludedPolicySetDefinitions` and `excludedPolicyAssignments`. Any of the strings can contain simple wild cards.
+
+Examples
 
 ```json
 "desiredState": {
     "strategy": "full",
-    "includeResourceGroups": false,
-    "excludedScopes": [
-        // Management Groups
-        // Subscriptions
-        // Resource Groups
+    "excludedScopes": [ // Management Groups, Subscriptions, Resource Groups
+        "/providers/Microsoft.Management/managementGroups/mg-policy-as-code/childScope"
     ],
     "excludedPolicyDefinitions": [
-        // wild cards allowed
+        "/subscriptions/*/providers/Microsoft.Authorization/policyDefinitions/childScope-policy"
     ],
     "excludedPolicySetDefinitions": [
-        // wild cards allowed
+        "/providers/Microsoft.Management/managementGroups/mg-policy-as-code/providers/Microsoft.Authorization/policySetDefinitions/pattern-policy-set-*",
+        "/providers/Microsoft.Management/managementGroups/mg-policy-as-code/providers/Microsoft.Authorization/policySetDefinitions/one-of-policy-set"
     ],
     "excludedPolicyAssignments": [
-        // wild cards allowed
+        "/subscriptions/*/providers/Microsoft.Authorization/policyAssignments/my-*"
     ]
 }
 ```
 
+![image.png](Images/shared-excluded.png)
+
 ## Use case 6: Include Resource Groups
 
-By default, Policy Assignments at resource groups are not managed by EPAC. Prior to v6.0, managing resource groups was to expensive. **Breaking change:** If you used the `-includeResourceGroup` switch in prior versions, set `includeResourceGroups` to `true` to achieve the same effect.
+By default, Policy Assignments at resource groups are not managed by EPAC. Prior to v6.0, managing resource groups was to expensive. **Breaking change:** If you used the `-IncludeResourceGroup` switch in prior versions, set `includeResourceGroups` to `true` to achieve the same effect.
 
 ```json
 "desiredState": {
     "strategy": "full",
-    "includeResourceGroups": true,
+    "includeResourceGroups": true
 }
 ```
 

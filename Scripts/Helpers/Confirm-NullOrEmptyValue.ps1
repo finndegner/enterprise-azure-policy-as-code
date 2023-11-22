@@ -1,27 +1,30 @@
 function Confirm-NullOrEmptyValue {
     [CmdletBinding()]
     param (
-        $inputObject,
-        $nullOnly = $false
+        [Parameter(Mandatory = $false)]
+        $InputObject = $null,
+
+        [Parameter(Mandatory = $false)]
+        $NullOnly = $false
     )
 
-    if ($null -eq $inputObject) {
+    if ($null -eq $InputObject) {
         return $true
     }
-    elseif (!$nullOnly) {
-        $type = $inputObject.GetType()
+    elseif (!$NullOnly) {
+        $type = $InputObject.GetType()
         $typeName = $type.Name
         if ($typeName -in @( "String" )) {
-            return "" -eq $inputObject
+            return "" -eq $InputObject
         }
         elseif ($typeName -in @( "Object[]", "ArrayList" )) {
-            return $inputObject.Count -eq 0
+            return $InputObject.Count -eq 0
         }
         elseif ($typeName -in @( "Hashtable", "OrderedDictionary", "OrderedHashtable" )) {
-            return $inputObject.Count -eq 0
+            return $InputObject.Count -eq 0
         }
-        elseif ($typeName -ne "DateTimeS" -and $inputObject -is [PSCustomObject]) {
-            $properties = $inputObject | Get-Member -MemberType Properties
+        elseif ($typeName -ne "DateTime" -and $InputObject -is [PSCustomObject]) {
+            $properties = $InputObject | Get-Member -MemberType Properties
             return $properties.Count -eq 0
         }
         else {

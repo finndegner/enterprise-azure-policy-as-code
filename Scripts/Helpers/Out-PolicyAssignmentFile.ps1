@@ -1,13 +1,13 @@
 function Out-PolicyAssignmentFile {
     [CmdletBinding()]
     param (
-        $perDefinition,
-        $propertyNames,
-        $policyAssignmentsFolder,
-        $invalidChars
+        $PerDefinition,
+        $PropertyNames,
+        $PolicyAssignmentsFolder,
+        $InvalidChars
     )
 
-    $definition = $perDefinition.definitionEntry
+    $definition = $PerDefinition.definitionEntry
     $definitionKind = $definition.kind
     $definitionName = $definition.name
     $definitionId = $definition.id
@@ -15,14 +15,14 @@ function Out-PolicyAssignmentFile {
 
     $kindString = $definitionKind -replace "Definitions", ""
     $fullPath = Get-DefinitionsFullPath `
-        -folder $policyAssignmentsFolder `
-        -fileSuffix "-$kindString" `
-        -name $definition.name `
-        -displayName $definitionDisplayName `
-        -invalidChars $invalidChars `
-        -maxLengthSubFolder 30 `
-        -maxLengthFileName 100 `
-        -fileExtension $fileExtension
+        -Folder $PolicyAssignmentsFolder `
+        -FileSuffix "-$kindString" `
+        -Name $definition.name `
+        -DisplayName $definitionDisplayName `
+        -InvalidChars $InvalidChars `
+        -MaxLengthSubFolder 30 `
+        -MaxLengthFileName 100 `
+        -FileExtension $fileExtension
 
     # Create definitionEntry
     $definitionEntry = [ordered]@{}
@@ -56,17 +56,17 @@ function Out-PolicyAssignmentFile {
         }
     }
 
-    $assignmentDefinition = @{
+    $assignmentDefinition = [ordered]@{
+        '$schema'       = "https://raw.githubusercontent.com/Azure/enterprise-azure-policy-as-code/main/Schemas/policy-assignment-schema.json"
         nodeName        = "/root"
         definitionEntry = $definitionEntry
     }
-    Set-AssignmentNode `
-        -treeNode $perDefinition `
-        -assignmentNode $assignmentDefinition `
-        -propertyNames $propertyNames
+    Export-AssignmentNode `
+        -TreeNode $PerDefinition `
+        -AssignmentNode $assignmentDefinition `
+        -PropertyNames $PropertyNames
 
     # Write structure to file
-    Remove-NullFields $assignmentDefinition
     $json = ConvertTo-Json $assignmentDefinition -Depth 100
     $null = New-Item $fullPath -Force -ItemType File -Value $json
 }
