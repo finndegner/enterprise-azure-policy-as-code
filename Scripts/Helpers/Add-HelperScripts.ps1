@@ -29,9 +29,12 @@
 . "$PSScriptRoot/Confirm-PolicyDefinitionsParametersMatch.ps1"
 . "$PSScriptRoot/Confirm-PolicyResourceExclusions.ps1"
 . "$PSScriptRoot/Confirm-PolicySetDefinitionUsedExists.ps1"
+. "$PSScriptRoot/Confirm-ValidPolicyResourceName.ps1"
 
+. "$PSScriptRoot/Convert-AllowedEffectsToCsvString.ps1"
 . "$PSScriptRoot/Convert-EffectToOrdinal.ps1"
-. "$PSScriptRoot/Convert-EffectToString.ps1"
+. "$PSScriptRoot/Convert-EffectToMarkdownString.ps1"
+. "$PSScriptRoot/Convert-EffectToCsvString.ps1"
 . "$PSScriptRoot/Convert-OrdinalToEffectDisplayName.ps1"
 . "$PSScriptRoot/Convert-ListToToCsvRow.ps1"
 . "$PSScriptRoot/Convert-ParametersToString.ps1"
@@ -43,7 +46,7 @@
 . "$PSScriptRoot/Find-AzNonCompliantResources.ps1"
 
 . "$PSScriptRoot/Get-AssignmentsDetails.ps1"
-. "$PSScriptRoot/Get-AzPolicyExemptionsAtScopeRestMethod.ps1"
+. "$PSScriptRoot/Get-AzPolicyAssignmentRestMethod.ps1"
 . "$PSScriptRoot/Get-AzPolicyResources.ps1"
 . "$PSScriptRoot/Get-AzScopeTree.ps1"
 . "$PSScriptRoot/Get-CustomMetadata.ps1"
@@ -77,6 +80,7 @@
 . "$PSScriptRoot/Out-PolicyExemptions.ps1"
 . "$PSScriptRoot/Out-PolicySetsDocumentationToFile.ps1"
 
+. "$PSScriptRoot/Remove-AzRoleAssignmentRestMethod.ps1"
 . "$PSScriptRoot/Remove-NullFields.ps1"
 . "$PSScriptRoot/Remove-GlobalNotScopes.ps1"
 
@@ -89,6 +93,7 @@
 . "$PSScriptRoot/Set-AzPolicyDefinitionRestMethod.ps1"
 . "$PSScriptRoot/Set-AzPolicySetDefinitionRestMethod.ps1"
 . "$PSScriptRoot/Set-AzPolicyExemptionRestMethod.ps1"
+. "$PSScriptRoot/Set-AzRoleAssignmentRestMethod.ps1"
 
 . "$PSScriptRoot/Export-AssignmentNode.ps1"
 . "$PSScriptRoot/Set-ExportNode.ps1"

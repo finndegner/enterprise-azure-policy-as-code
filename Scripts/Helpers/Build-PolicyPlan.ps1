@@ -54,13 +54,16 @@ function Build-PolicyPlan {
 
         foreach ($file in $definitionFiles) {
             $Json = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
-            if (!(Test-Json $Json)) {
-                Write-Error "Policy JSON file '$($file.FullName)' is not valid." -ErrorAction Stop
+            try {
+                $definitionObject = $Json | ConvertFrom-Json
             }
-            $definitionObject = $Json | ConvertFrom-Json
+            catch {
+                Write-Error "Assignment JSON file '$($file.FullName)' is not valid." -ErrorAction Stop
+            }
 
             $definitionProperties = Get-PolicyResourceProperties -PolicyResource $definitionObject
             $name = $definitionObject.name
+            
             $id = "$deploymentRootScope/providers/Microsoft.Authorization/policyDefinitions/$name"
             $displayName = $definitionProperties.displayName
             $description = $definitionProperties.description
@@ -84,6 +87,9 @@ function Build-PolicyPlan {
             if ($null -eq $name) {
                 Write-Error "Policy from file '$($file.Name)' requires a name" -ErrorAction Stop
             }
+            if (-not (Confirm-ValidPolicyResourceName -Name $name)) {
+                Write-Error "Policy from file '$($file.Name) has a name '$name' containing invalid charachters <>*%&:?.+/ or ends with a space." -ErrorAction Stop
+            }
             if ($null -eq $displayName) {
                 Write-Error "Policy '$name' from file '$($file.Name)' requires a displayName" -ErrorAction Stop
             }
@@ -101,9 +107,14 @@ function Build-PolicyPlan {
             }
 
             # Calculate roleDefinitionIds for this Policy
-            if ($definitionProperties.policyRule.then.details -and $definitionProperties.policyRule.then.details.roleDefinitionIds) {
-                $roleDefinitionIdsInPolicy = $definitionProperties.policyRule.then.details.roleDefinitionIds
-                $null = $PolicyRoleIds.Add($id, $roleDefinitionIdsInPolicy)
+            if ($null -ne $definitionProperties.policyRule.then.details) {
+                $details = $definitionProperties.policyRule.then.details
+                if ($details -isnot [array]) {
+                    $roleDefinitionIdsInPolicy = $details.roleDefinitionIds
+                    if ($null -ne $roleDefinitionIdsInPolicy) {
+                        $null = $PolicyRoleIds.Add($id, $roleDefinitionIdsInPolicy)
+                    }
+                }
             }
 
             # Constructing Policy parameters for splatting

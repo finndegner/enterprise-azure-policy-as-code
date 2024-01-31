@@ -90,11 +90,9 @@ else {
         Write-Information "==================================================================================================="
         Write-Information "Remove ($($removedRoleAssignments.psbase.Count)) obsolete Role assignments"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        $splatTransform = "principalId/ObjectId scope/Scope roleDefinitionId/RoleDefinitionId"
         foreach ($roleAssignment in $removedRoleAssignments) {
-            Write-Information "$($roleAssignment.displayName): $($roleAssignment.roleDisplayName)($($roleAssignment.roleDefinitionId)) at $($roleAssignment.scope)"
-            $splat = Get-FilteredHashTable $roleAssignment -SplatTransform $splatTransform
-            $null = Remove-AzRoleAssignment @splat -WarningAction SilentlyContinue
+            Write-Information "PrincipalId $($roleAssignment.principalId), role $($roleAssignment.roleDisplayName)($($roleAssignment.roleDefinitionId)) at $($roleAssignment.scope)"
+            $null = Remove-AzRoleAssignmentRestMethod -RoleAssignmentId $roleAssignment.id
         }
         Write-Information ""
     }
@@ -103,44 +101,58 @@ else {
         Write-Information "==================================================================================================="
         Write-Information "Add ($($addedRoleAssignments.psbase.Count)) new Role assignments"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        $retriesLimit = 4
-        $splatTransform = "principalId/ObjectId objectType/ObjectType scope/Scope roleDefinitionId/RoleDefinitionId"
-        $identitiesByAssignmentId = @{}
+
+        # Get identities for policy assignments from plan or by calling the REST API to retrieve the Policy Assignment
+        $assignmentById = @{}
         foreach ($roleAssignment in $addedRoleAssignments) {
             $principalId = $roleAssignment.principalId
             if ($null -eq $principalId) {
                 $policyAssignmentId = $roleAssignment.assignmentId
                 $identity = $null
-                if ($identitiesByAssignmentId.ContainsKey($policyAssignmentId)) {
-                    $identity = $identitiesByAssignmentId.$policyAssignmentId
-                }
-                else {
-                    $policyAssignment = Get-AzPolicyAssignment -Id $roleAssignment.assignmentId -WarningAction SilentlyContinue
-                    $identity = $policyAssignment.Identity
-                    $null = $identitiesByAssignmentId.Add($policyAssignmentId, $identity)
-                }
-                $principalId = $identity.PrincipalId
-                $roleAssignment.principalId = $principalId
-            }
-            Write-Information "$($policyAssignment.Properties.displayName): $($roleAssignment.roleDisplayName)($($roleAssignment.roleDefinitionId)) at $($roleAssignment.scope)"
-            $splat = Get-FilteredHashTable $roleAssignment -SplatTransform $splatTransform
-            if (Get-AzRoleAssignment -Scope $splat.Scope -ObjectId $splat.ObjectId -RoleDefinitionId $splat.RoleDefinitionId) {
-                Write-Information "Role assignment already exists"
-            }
-            else {
-                while ($retries -le $retriesLimit) {
-
-                    $result = New-AzRoleAssignment @splat -WarningAction SilentlyContinue
-                    if ($null -ne $result) {
-                        break
+                $principalId = ""
+                if (-not $assignmentById.ContainsKey($policyAssignmentId)) {
+                    $policyAssignment = Get-AzPolicyAssignmentRestMethod -AssignmentId $roleAssignment.assignmentId
+                    $identity = $policyAssignment.identity
+                    if ($identity -and $identity.type -ne "None") {
+                        $principalId = ""
+                        if ($identity.type -eq "SystemAssigned") {
+                            $principalId = $identity.principalId
+                        }
+                        else {
+                            $userAssignedIdentityId = $identity.userAssignedIdentities.PSObject.Properties.Name
+                            $principalId = $identity.userAssignedIdentities.$userAssignedIdentityId.principalId
+                        }
                     }
                     else {
-                        Start-Sleep -Seconds 10
-                        $retries++
+                        Write-Error "Identity not found for assignment '$($policyAssignmentId)'" -ErrorAction Stop
                     }
+                    $null = $assignmentById.Add($policyAssignmentId, @{
+                            principalId = $principalId
+                            displayName = $policyAssignment.properties.displayName
+                        })
                 }
             }
-            
+            else {
+                $null = $assignmentById.Add($roleAssignment.assignmentId, @{
+                        principalId = $principalId
+                        displayName = $roleAssignment.displayName
+                    })
+            }
+        }
+
+        # Add the role assignments using the information collected above
+        foreach ($roleAssignment in $addedRoleAssignments) {
+            $assignmentId = $roleAssignment.assignmentId
+            $assignmentInfo = $assignmentById.$assignmentId
+            $splat = @{
+                Scope                 = $roleAssignment.scope
+                ObjectType            = $roleAssignment.objectType
+                ObjectId              = $assignmentInfo.principalId
+                RoleDefinitionId      = $roleAssignment.roleDefinitionId
+                RoleDisplayName       = $roleAssignment.roleDisplayName
+                AssignmentDisplayName = $assignmentInfo.displayName
+            }
+            Set-AzRoleAssignmentRestMethod @splat -IgnoreDuplicateError
         }
     }
     Write-Information ""

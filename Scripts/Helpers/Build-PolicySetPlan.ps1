@@ -65,10 +65,13 @@ function Build-PolicySetPlan {
 
         foreach ($file in $definitionFiles) {
             $Json = Get-Content -Path $file.FullName -Raw -ErrorAction Stop
-            if (!(Test-Json $Json)) {
-                Write-Error "Policy Set JSON file '$($file.Name)' is not valid = $Json" -ErrorAction Stop
+
+            try {
+                $definitionObject = $Json | ConvertFrom-Json -Depth 100
             }
-            $definitionObject = $Json | ConvertFrom-Json -Depth 100
+            catch {
+                Write-Error "Assignment JSON file '$($file.Name)' is not valid." -ErrorAction Stop
+            }
 
             $definitionProperties = Get-PolicyResourceProperties -PolicyResource $definitionObject
             $name = $definitionObject.name
@@ -96,6 +99,9 @@ function Build-PolicySetPlan {
             # Core syntax error checking
             if ($null -eq $name) {
                 Write-Error "Policy Set from file '$($file.Name)' requires a name" -ErrorAction Stop
+            }
+            if (-not (Confirm-ValidPolicyResourceName -Name $name)) {
+                Write-Error "Policy Set from file '$($file.Name) has a name '$name' containing invalid charachters <>*%&:?.+/ or ends with a space." -ErrorAction Stop
             }
             if ($null -eq $displayName) {
                 Write-Error "Policy Set '$name' from file '$($file.Name)' requires a displayName" -ErrorAction Stop

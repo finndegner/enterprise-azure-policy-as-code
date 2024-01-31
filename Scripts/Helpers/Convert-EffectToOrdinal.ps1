@@ -3,21 +3,17 @@ function Convert-EffectToOrdinal {
         [string] $Effect
     )
 
-    $effect2sortOrdinal = @{
-        Modify            = 0
-        Append            = 0
-        DeployIfNotExists = 0
-        Deny              = 1
-        Audit             = 2
-        Manual            = 2
-        AuditIfNotExists  = 3
-        Disabled          = 4
-    }
-
-
-    $ordinal = -1 # should not be possible
-    if ($effect2sortOrdinal.ContainsKey($Effect)) {
-        $ordinal = $effect2sortOrdinal.$Effect
+    $ordinal = switch ($Effect) {
+        "Modify" { 0 }
+        "Append" { 1 }
+        "DeployIfNotExists" { 2 }
+        "DenyAction" { 3 }
+        "Deny" { 4 }
+        "Audit" { 5 }
+        "Manual" { 6 }
+        "AuditIfNotExists" { 7 }
+        "Disabled" { 8 }
+        default { 98 }
     }
     return $ordinal
 }

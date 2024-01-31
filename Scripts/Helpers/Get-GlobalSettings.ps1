@@ -24,10 +24,13 @@ function Get-GlobalSettings {
     Write-Information "PowerShell Versions: $($PSVersionTable.PSVersion)"
 
     $Json = Get-Content -Path $globalSettingsFile -Raw -ErrorAction Stop
-    if (!(Test-Json $Json)) {
-        Write-Error "JSON file ""$($globalSettingsFile)"" is not valid = $Json" -ErrorAction Stop
+    try {
+        [hashtable] $settings = $Json | ConvertFrom-Json -AsHashTable
     }
-    [hashtable] $settings = $Json | ConvertFrom-Json -AsHashTable
+    catch {
+        Write-Error "Assignment JSON file '$($globalSettingsFile)' is not valid." -ErrorAction Stop
+    }
+
     [array] $pacEnvironments = $settings.pacEnvironments
     [hashtable] $pacEnvironmentDefinitions = @{}
     [string[]] $pacEnvironmentSelectors = @()
@@ -110,6 +113,7 @@ function Get-GlobalSettings {
             excludedPolicyAssignments    = @()
             deleteExpiredExemptions      = $true
             deleteOrphanedExemptions     = $true
+            keepDfcSecurityAssignments   = $false
         }
         if ($null -ne $pacEnvironment.desiredState) {
             $desired = $pacEnvironment.desiredState
@@ -128,6 +132,15 @@ function Get-GlobalSettings {
                 }
                 else {
                     Write-Error "Policy as Code environment $pacSelector field desiredState.includeResourceGroups ($includeResourceGroups) must be a boolean value." -ErrorAction Stop
+                }
+            }
+            $keepDfcSecurityAssignments = $desired.keepDfcSecurityAssignments
+            if ($null -ne $keepDfcSecurityAssignments) {
+                if ($keepDfcSecurityAssignments -is [bool]) {
+                    $desiredState.keepDfcSecurityAssignments = $keepDfcSecurityAssignments
+                }
+                else {
+                    Write-Error "Policy as Code environment $pacSelector field desiredState.keepDfcSecurityAssignments ($keepDfcSecurityAssignments) must be a boolean value." -ErrorAction Stop
                 }
             }
             $excluded = $desired.excludedScopes

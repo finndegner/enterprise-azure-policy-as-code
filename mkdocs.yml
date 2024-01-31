@@ -28,14 +28,16 @@ nav:
       - Overview: quick-start.md
       - Usage Tracking: usage-tracking.md
       - Operating Environment: operating-environment.md
-      - Cloning the Project: clone-github.md
-      - PowerShell Module: powershell-module.md
-      - Desired State Strategy: desired-state-strategy.md
       - Global Settings and Definitions: definitions-and-global-settings.md
+      - Managing Defender for Cloud Assignments: dfc-assignments.md
+      - Desired State Strategy: desired-state-strategy.md
       - Tips: tips.md
+      - Alternate Script Installation: clone-github.md
   - CI/CD Integration:
-      - CI/CD Pipeline: ci-cd-pipeline.md
-      - GitHub Actions: github-actions.md
+      - CI/CD Overview: ci-cd-overview.md
+      - App Registrations Setup: ci-cd-app-registrations.md
+      - Azure DevOps Pipelines: ci-cd-ado-pipelines.md
+      - GitHub Actions: ci-cd-github-actions.md
   - Azure Landing Zones:
       - ALZ Policy Integration: integrating-with-alz.md
       - Azure Monitor Baseline Alerts: integrating-with-alz-monitor.md
