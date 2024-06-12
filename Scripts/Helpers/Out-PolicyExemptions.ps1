@@ -28,7 +28,7 @@ function Out-PolicyExemptions {
         label      = "policyDefinitionReferenceIds"
         expression = {
             if ($_.policyDefinitionReferenceIds) {
-            ($_.policyDefinitionReferenceIds -join ",").ToString()
+            ($_.policyDefinitionReferenceIds -join "&").ToString()
             }
             else {
                 ''
@@ -102,7 +102,7 @@ function Out-PolicyExemptions {
     #endregion Transformations
 
     Write-Information ""
-    $selectedExemptions = $policyExemptions.Values
+    $selectedExemptions = $Exemptions.Values
     $numberOfExemptions = $selectedExemptions.Count
     if ($ActiveExemptionsOnly) {
 

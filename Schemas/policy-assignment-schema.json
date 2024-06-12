@@ -1,5 +1,5 @@
 {
-    "$schema": "http://json-schema.org/draft-04/schema#",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
         "nodeName": {
@@ -24,6 +24,9 @@
                     "type": "string"
                 },
                 "policySetName": {
+                    "type": "string"
+                },
+                "definitionVersion": {
                     "type": "string"
                 },
                 "displayName": {
@@ -72,6 +75,9 @@
                             "type": "string"
                         },
                         "policySetName": {
+                            "type": "string"
+                        },
+                        "definitionVersion": {
                             "type": "string"
                         },
                         "displayName": {
@@ -270,7 +276,7 @@
                 }
             }
         },
-        "notScope": {
+        "notScopes": {
             "type": "object",
             "properties": {
                 "patternProperties": {

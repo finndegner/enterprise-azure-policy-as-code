@@ -7,8 +7,11 @@ function Confirm-MetadataMatches {
 
     $match = $false
     $changePacOwnerId = $false
-    $existingMetadata = Get-DeepClone $ExistingMetadataObj -AsHashTable
-    $definedMetadata = Get-DeepClone $DefinedMetadataObj -AsHashTable
+    if ($null -eq $ExistingMetadataObj) {
+        return $false, $true
+    }
+    $existingMetadata =  Get-DeepCloneAsOrderedHashtable $ExistingMetadataObj
+    $definedMetadata = Get-DeepCloneAsOrderedHashtable $DefinedMetadataObj
 
     # remove system generated metadata from consideration
     if ($existingMetadata.ContainsKey("createdBy")) {
@@ -23,10 +26,14 @@ function Confirm-MetadataMatches {
     if ($existingMetadata.ContainsKey("updatedOn")) {
         $existingMetadata.Remove("updatedOn")
     }
+    if ($existingMetadata.ContainsKey("lastSyncedToArgOn")) {
+        $existingMetadata.Remove("lastSyncedToArgOn")
+    }
 
     $existingPacOwnerId = $existingMetadata.pacOwnerId
     $definedPacOwnerId = $definedMetadata.pacOwnerId
     if ($existingPacOwnerId -ne $definedPacOwnerId) {
+        Write-Information "pacOwnerId has changed from '$existingPacOwnerId' to '$definedPacOwnerId'"
         $changePacOwnerId = $true
     }
     if ($definedMetadata.ContainsKey("pacOwnerId")) {
@@ -36,8 +43,11 @@ function Confirm-MetadataMatches {
         $null = $existingMetadata.Remove("pacOwnerId")
     }
     if ($existingMetadata.psbase.Count -eq $definedMetadata.psbase.Count) {
-        $match = Confirm-ObjectValueEqualityDeep $existingMetadata $definedMetadata -HandleRandomOrderArray
+        $match = Confirm-ObjectValueEqualityDeep $existingMetadata $definedMetadata
     }
 
+    if (!$match) {
+        $null = $null
+    }
     return $match, $changePacOwnerId
 }

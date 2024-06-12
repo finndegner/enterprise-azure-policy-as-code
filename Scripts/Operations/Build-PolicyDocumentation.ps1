@@ -17,6 +17,9 @@
 .PARAMETER SuppressConfirmation
     Suppresses prompt for confirmation to delete existing file in interactive mode
 
+.PARAMETER IncludeManualPolicies
+    Include Policies with effect Manual. Default: do not include Polcies with effect Manual.
+
 .EXAMPLE
     Build-PolicyDocumentation.ps1 -DefinitionsRootFolder "C:\PAC\Definitions" -OutputFolder "C:\PAC\Output" -Interactive
     Builds documentation from instructions in policyDocumentations folder reading the delployed Policy Resources from the EPAC envioronment.
@@ -49,7 +52,10 @@ param (
     [bool] $Interactive = $true,
 
     [Parameter(Mandatory = $false, HelpMessage = "Suppresses prompt for confirmation of each file in interactive mode")]
-    [switch] $SuppressConfirmation
+    [switch] $SuppressConfirmation,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Include Policies with effect Manual. Default: do not include Polcies with effect Manual.")]
+    [switch] $IncludeManualPolicies
 )
 
 # Dot Source Helper Scripts
@@ -69,7 +75,7 @@ if (-not (Test-Path $outputPath)) {
 # Telemetry
 if ($globalSettings.telemetryEnabled) {
     Write-Information "Telemetry is enabled"
-    [Microsoft.Azure.Common.Authentication.AzureSession]::ClientFactory.AddUserAgent("pid-2dc29bae-2448-4d7f-b911-418421e83900") 
+    Submit-EPACTelemetry -Cuapid "pid-2dc29bae-2448-4d7f-b911-418421e83900" -DeploymentRootScope $pacEnvironment.deploymentRootScope
 }
 else {
     Write-Information "Telemetry is disabled"
@@ -175,7 +181,6 @@ foreach ($file in $files) {
                 if (-not $policySets -or $policySets.Count -eq 0) {
                     Write-Error "documentPolicySet entry does not specify required policySets array entry." -ErrorAction Stop
                 }
-                $environmentColumnsInCsv = $documentPolicySetEntry.environmentColumnsInCsv
 
                 # Load pacEnvironment if not already loaded
                 if (-not $cachedPolicyResourceDetails.ContainsKey($pacEnvironmentSelector)) {
@@ -185,12 +190,11 @@ foreach ($file in $files) {
                             -PacEnvironmentSelector $currentPacEnvironmentSelector `
                             -PacEnvironments $pacEnvironments `
                             -Interactive $Interactive
-
                     }
                 }
 
                 # Retrieve Policies and PolicySets for current pacEnvironment from cache or from Azure
-                $policyResourceDetails = Get-PolicyResourceDetails `
+                $policyResourceDetails = Get-AzPolicyResourcesDetails `
                     -PacEnvironmentSelector $pacEnvironmentSelector `
                     -PacEnvironment $pacEnvironment `
                     -CachedPolicyResourceDetails $cachedPolicyResourceDetails
@@ -227,20 +231,20 @@ foreach ($file in $files) {
                 $itemList = $itemArrayList.ToArray()
 
                 # flatten structure and reconcile most restrictive effect for each policy
-                $flatPolicyList = Convert-PolicySetsToFlatList `
+                $flatPolicyList = Convert-PolicyResourcesDetailsToFlatList `
                     -ItemList $itemList `
                     -Details $policySetDetails
 
                 # Print documentation
-                Out-PolicySetsDocumentationToFile `
+                Out-DocumentationForPolicySets `
                     -OutputPath $outputPath `
-                    -FileNameStem $fileNameStem `
                     -WindowsNewLineCells:$WindowsNewLineCells `
-                    -Title $title `
+                    -DocumentationSpecification $documentPolicySetEntry `
                     -ItemList $itemList `
                     -EnvironmentColumnsInCsv $environmentColumnsInCsv `
                     -PolicySetDetails $policySetDetails `
-                    -FlatPolicyList $flatPolicyList
+                    -FlatPolicyList $flatPolicyList `
+                    -IncludeManualPolicies:$IncludeManualPolicies
             }
         }
 
@@ -266,7 +270,7 @@ foreach ($file in $files) {
                 }
 
                 # Retrieve Policies and PolicySets for current pacEnvironment from cache or from Azure
-                $policyResourceDetails = Get-PolicyResourceDetails `
+                $policyResourceDetails = Get-AzPolicyResourcesDetails `
                     -PacEnvironmentSelector $currentPacEnvironmentSelector `
                     -PacEnvironment $pacEnvironment `
                     -CachedPolicyResourceDetails $cachedPolicyResourceDetails
@@ -274,14 +278,14 @@ foreach ($file in $files) {
                 # Retrieve assignments and process information or retrieve from cache is assignment previously processed
                 $assignmentArray = $environmentCategoryEntry.representativeAssignments
 
-                $itemList, $assignmentsDetails = Get-AssignmentsDetails `
+                $itemList, $assignmentsDetails = Get-PolicyAssignmentsDetails `
                     -PacEnvironmentSelector $currentPacEnvironmentSelector `
                     -AssignmentArray $assignmentArray `
                     -PolicyResourceDetails $policyResourceDetails `
                     -CachedAssignmentsDetails $cachedAssignmentsDetails
 
                 # Flatten Policy lists in Assignments and reconcile the most restrictive effect for each Policy
-                $flatPolicyList = Convert-PolicySetsToFlatList `
+                $flatPolicyList = Convert-PolicyResourcesDetailsToFlatList `
                     -ItemList $itemList `
                     -Details $assignmentsDetails
 
@@ -303,12 +307,13 @@ foreach ($file in $files) {
                 if ($null -ne $documentationType) {
                     Write-Information "Field documentationType ($($documentationType)) is deprecated"
                 }
-                Out-PolicyAssignmentDocumentationToFile `
+                Out-DocumentationForPolicyAssignments `
                     -OutputPath $outputPath `
                     -WindowsNewLineCells:$WindowsNewLineCells `
                     -DocumentationSpecification $documentationSpecification `
-                    -AssignmentsByEnvironment $assignmentsByEnvironment
-                # Out-PolicyAssignmentDocumentationToFile `
+                    -AssignmentsByEnvironment $assignmentsByEnvironment `
+                    -IncludeManualPolicies:$IncludeManualPolicies
+                # Out-DocumentationForPolicyAssignments `
                 #     -OutputPath $outputPath `
                 #     -WindowsNewLineCells:$true `
                 #     -DocumentationSpecification $documentationSpecification `

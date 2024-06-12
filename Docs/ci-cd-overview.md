@@ -1,97 +1,121 @@
 # CI/CD Overview
-This page covers the general CI/CD documentation.
 
-This repository contains starter pipelines
-
-* [Azure DevOps Pipelines](./ci-cd-ado-pipelines.md)
-* [GitHub Actions](./github-actions.md)
-
+Since EPAC is based on PowerShell scripts, any CI/CD tool with the ability to execute scripts can be used. The starter kits currently include pipeline definitions for Azure DevOps and GitHub Actions. Additional starter kits are being implemented and will be added in future releases.
 
 The authors are interested in supporting other deployment pipelines. If you have developed pipelines for other technologies, such as GitLab, Jenkins, etc., please contribute them to the project as additional starter kits.
 
-## Simplified `GitHub Flow` for Policy as Code
+This repository contains starter pipelines and instructions for can be found here:
 
-The diagram below shows the use of GitHub Flow in Policy as Code. The diagram uses GitHub workflow terminology; however, the concepts apply equally to other CI/CD technologies. Detailed instructions for  [Azure DevOps Pipelines](./ci-cd-ado-pipelines.md) and [GitHub Actions](./github-actions.md) are provided.
+- [Azure DevOps Pipelines](ci-cd-ado-pipelines.md)
+- [GitHub Actions](ci-cd-github-actions.md)
 
-The flow shown in the diagram contains the following steps:
+## General EPAC Deployment Steps
 
-1. Developers create feature branches from `main` branch.
-2. Developers create or update Policy definitions, Policy Set definitions, and Policy Assignment files in the `Definitions` folder. Developers push changes to the feature branch.
-3. The CI/CD pipeline/action is triggered from the push to the feature branch. We recommend to use a single App Registration (SPN) to execute pipeline/action. The SPN must have `Owner` rights to the `epac-dev` Management Group and the Microsoft Graph permissions described below. The steps are:
-    * Build-DeploymentPlans.ps1 to calculate the deployment plan
-    * Deploy-PolicyPlan.ps1 to deploy the plan's Policy Resources
-    * Deploy-RolesPlan.ps1 to create the role assignments for the Managed Identities required for `DeployIfNotExists` and `Modify` Policies.
-* Steps 1 to 3 are repeated during the development process.
-4.  When the feature is ready, the developer creates a Pull Request (PR) to merge the feature branch into the `main` branch. The merge of the PR into the `main` branch triggers the CI/CD pipeline/action (step 5) to deploy the changes to the `prod` environment. 
-5.  Since these deployments are most often deployed at the pseudo root of the tenant, we recommend creating a separate App Registration (SPN) for each of the 3 steps with roles assigned in line with the least privilege principle. The steps are:
-    * Build-DeploymentPlans.ps1 to calculate the deployment plan. SPN must have `EPAC Resource Policy Reader` custom role on the root or pseudo-root management group and the Microsoft Graph permissions described below.
-    * Approval gate for Policy resources deployment.
-    * Deploy-PolicyPlan.ps1 to deploy the plan's Policy Resources. SPN must have `Resource Policy Contributor` built-in role on the root or pseudo-root management group. Microsoft Graph permissions are not required.
-    * Approval gate for Role assignments deployment.
-    * Deploy-RolesPlan.ps1 to create the role assignments for the Managed Identities required for `DeployIfNotExists` and `Modify` Policies. SPN must have `User Access Administrator` built-in role on the root or pseudo-root management group and the Microsoft Graph permissions described below.
-* Action  through 3 within step 8 above are repeated for additional tenants in a multi-tenant scenario.
+EPAC has three major steps in the Deployment process for each environment.
+- Build Deployment Plans
+- Policy Deployment
+- Role Deployment
 
-![image.png](Images/epac-github-flow.png)
+Each step can be called by using the `EnterprisePolicyAsCode` PowerShell module (recommended), or calling the script directly. For more details on EPAC installation options, please refer to the [Start Implementation](start-implementing.md/#install-powershell-and-epac) section.
 
-## `GitHub` Flow Variations
+> [!TIP]
+> EPAC is **declarative** and **idempotent**: this means, that regardless how many times it is run, EPAC will always push all changes that were implemented in the JSON files to the Azure environment, i.e. if a JSON file is newly created/updated/deleted, EPAC will create/update/delete the Policy and/or Policy Set and/or Policy Assignments definition in Azure. If there are no changes, EPAC can be run any number of times, as it won't make any changes to Azure.
 
-EPAC can handle any flow you like. For `GitHub Flow`, the following variations are possible. WE do not recommend this approach since the additional calculations rarely yield any insights.:
+### Build Deployment Plans
+Analyzes changes in Policy definition, Policy Set definition, Policy Assignment & Policy Exemption files for a given environment. It calculates and displays any deltas, while creating the deployment plan(s) to apply any changes. A "Policy Plan" will be created for use by the Policy Deployment step if any changes are found to the policy objects, assignments, or exemptions while a "Role Plan" will be created for use by the Role deployment step should there be any changes to role assignments for the deployed policies. If no changes are found, no plans are created.
 
-* Adding a deployment plan from the feature branch to the production environment in step 3 above during the development process (see steps 1 through 3 in the diagram above) by adding a step using Build-DeploymentPlans.ps1. This is useful to test the deployment plan in the production environment before creating a PR. We recommend using a separate SPN for this step (job).
-* PR creation trigger for a CI/CD pipeline/action deploy the changes to an `epac-test` environment with the same steps as the deployment to `epac-dev` environment in steps 3 above.
+For saving the output related to ```Build-DeploymentPlans``` there is global variable called ```$epacInfoStream``` which captures all output from the commands. If required, this can be used as a PR message or to present a summary of the plan.
 
+**Deployment Mechanism**
 
-## Deployment Scripts
+|Deployment Mode | Command/Script |
+|----------|-------------|
+| Module (Recommended) | Build-DeploymentPlans |
+| Script | Build-DeploymentPlans.ps1 | 
 
-While this script intended to be used in CI/CD, they can be run manually to create a semi-automated EPAC solution. This is useful:
-
-* CI/CD environment is not yet available.
-* Debugging the scripts from Visual Studio Code.
-
-Deployment scripts require permissions to the Azure environment and Microsoft Graph API. In a CI/CD scenario, App Registration (SPNs) are used to execute the scripts. These identities must be granted the necessay permissions as documented in [App Registrations Setup](./ci-cd-app-registrations.md). In a semi-automated scenario, the user executing the scripts must have the necessary permissions. The scripts will prompt for the necessary permissions.
-
-The image below shows the scripts and the roles required for their execution.
-
-* `Build-DeploymentPlans.ps1` requires `EPAC Resource Policy Reader` custom role on the root or pseudo-root management group and the Microsoft Graph permissions described below.
-* `Deploy-PolicyPlan.ps1` requires `Resource Policy Contributor` built-in role on the root or pseudo-root management group. Microsoft Graph permissions are not required.
-* `Deploy-RolesPlan.ps1` requires `User Access Administrator` built-in role on the root or pseudo-root management group and the Microsoft Graph permissions described below.
-
-Furthermore, it shows the consumption of the `Definitions` files by script Build-DeploymentPlans.ps1 and output of two plan files (Policy and Roles). The plan files are subsequently used by the deployment scripts `Deploy-PolicyPlan.ps1` and `Deploy-RolesPlan.ps1`.
-
-![image.pmg](Images/epac-deployment-scripts.png)
-
-### Common Script Parameters
+**Parameters**
 
 |Parameter | Explanation |
 |----------|-------------|
 | `PacEnvironmentSelector` | Selects the EPAC environment for this plan. If omitted, interactively prompts for the value. |
-| `DefinitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain file `global-settings.jsonc`. |
+| `DefinitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain the file `global-settings.jsonc`. |
 | `Interactive` | Defaults to `$false`. |
-
-### Build-DeploymentPlans.ps1
-
-Analyzes changes in Policy definition, Policy Set definition, and Policy Assignment files. It calculates a plan to apply deltas. The deployment scripts are **declarative** and **idempotent**: this means, that regardless how many times they are run, they always push all changes that were implemented in the JSON files to the Azure environment, i.e. if a JSON file is newly created/updated/deleted, the pipeline will create/update/delete the Policy and/or Policy Set and/or Policy Assignments definition in Azure. If there are no changes, the pipeline can be run any number of times, as it won't make any changes to Azure.
-
-In addition to the [common parameters](#common-script-parameters), these parameters are defined:
-
-|Parameter | Explanation |
-|----------|-------------|
 | `OutputFolder` | Output folder path for plan files. Defaults to environment variable `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
 | `DevOpsType` | If set, outputs variables consumable by conditions in a DevOps pipeline. Default: not set. |
+| `BuildExemptionsOnly` | If set, only builds the Exemptions plan. This useful to fast-track Exemption when utilizing [Release Flow](#advanced-cicd-with-release-flow) Default: not set. |
 
-### Deploy-PolicyPlan.ps1
-
+### Policy Deployment
 Deploys Policies, Policy Sets, Policy Assignments, and Policy Exemptions at their desired scope based on the plan.
 
+**Deployment Mechanism**
+
+|Deployment Mode | Command/Script |
+|----------|-------------|
+| Module (Recommended) | Deploy-PolicyPlan |
+| Script | Deploy-PolicyPlan.ps1 | 
+
+**Parameters**
+
 |Parameter | Explanation |
 |----------|-------------|
+| `PacEnvironmentSelector` | Selects the EPAC environment for this plan. If omitted, interactively prompts for the value. |
+| `DefinitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain the file `global-settings.jsonc`. |
+| `Interactive` | Defaults to `$false`. |
 | `InputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
 
-### Deploy-RolesPlan.ps1
-
+### Role Deployment
 Creates the role assignments for the Managed Identities required for `DeployIfNotExists` and `Modify` Policies.
 
+**Deployment Mechanism**
+
+|Deployment Mode | Command/Script |
+|----------|-------------|
+| Module (Recommended) | Deploy-RolesPlan |
+| Script | Deploy-RolesPlan.ps1 | 
+
+**Parameters**
+
 |Parameter | Explanation |
 |----------|-------------|
+| `PacEnvironmentSelector` | Selects the EPAC environment for this plan. If omitted, interactively prompts for the value. |
+| `DefinitionsRootFolder` | Definitions folder path. Defaults to environment variable `$env:PAC_DEFINITIONS_FOLDER` or `./Definitions`. It must contain the file `global-settings.jsonc`. |
+| `Interactive` | Defaults to `$false`. |
 | `InputFolder` | Input folder path for plan files. Defaults to environment variable `$env:PAC_INPUT_FOLDER`, `$env:PAC_OUTPUT_FOLDER` or `./Output`. |
 
+## Create Azure DevOps Pipelines or GitHub Workflows from Starter Pipelines.
+
+Starter Pipelines have been created to orchestrate the EPAC deployment steps listed above. The scripts `New-PipelinesFromStarterKit` create [Azure DevOps Pipelines or GitHub Workflows from the starter kit](operational-scripts-hydration-kit.md#create-azure-devops-pipeline-or-github-workflow). You select the type of pipeline to create, the branching flow to implement, and the ScriptType to use.
+- The starter kits support two branching/release strategies (`GitHub` and `Release`). More details on these branching flows refer to the [Branching Flow Guidance](ci-cd-branching-flows.md).
+- The recommended `ScriptType` is `module`, which utilizes the `EnterprisePolicyAsCode` Powershell module. For more details on EPAC installation options, please refer to the [Start Implementation](start-implementing.md/#install-powershell-and-epac) section.
+
+### Azure DevOps Pipelines
+
+The following commands create Azure DevOps Pipelines from the starter kit; use one of the commands:
+
+```ps1
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\pipelines -PipelineType AzureDevOps -BranchingFlow GitHub -ScriptType script
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\pipelines -PipelineType AzureDevOps -BranchingFlow Release -ScriptType script
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\pipelines -PipelineType AzureDevOps -BranchingFlow GitHub -ScriptType module
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\pipelines -PipelineType AzureDevOps -BranchingFlow Release -ScriptType module
+```
+
+### GitHub Workflows
+
+The following commands create GitHub Workflows from the starter kit; use one of the commands:
+
+```ps1
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\.github/workflows -PipelineType GitHubActions -BranchingFlow GitHub -ScriptType script
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\.github/workflows -PipelineType GitHubActions -BranchingFlow Release -ScriptType script
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\.github/workflows -PipelineType GitHubActions -BranchingFlow GitHub -ScriptType module
+New-PipelinesFromStarterKit -StarterKitFolder .\StarterKit -PipelinesFolder .\.github/workflows -PipelineType GitHubActions -BranchingFlow Release -ScriptType module
+```
+
+## General Hardening Guidelines
+
+- **Least Privilege**: Use the least privilege principle when assigning roles to the SPNs used in the CI/CD pipeline. The roles should be assigned at the root or pseudo-root management group level. For more details on the SPNs to use and required permissions refer to [App Registrations Setup](ci-cd-app-registrations.md)
+- Require a Pull Request for changes to the `main` branch. This ensures that changes are reviewed before deployment.
+- Require additional reviewers for yml pipeline and script changes.
+- Require branches to be in a folder `feature` to prevent accidental deployment of branches.
+- Require an approval step between the Plan stage/job and the Deploy stage/job. This ensures that the changes are reviewed before deployment.
+- [Optional] Require an approval step between the Deploy stage/job and the Role Assignments stage/job. This ensures that the role assignments are reviewed before deployment.
+- For `Release Flow` only: allow only privileged users to create `releases-prod` and `releases-exemptions-only` branches and require those branches to be created from the main branch only.

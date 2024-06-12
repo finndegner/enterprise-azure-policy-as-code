@@ -99,7 +99,7 @@ param(
     [Parameter(Mandatory = $false, HelpMessage = "Filter by Policy Effect")]
     [string[]] $PolicyEffectFilter = $null,
 
-    [Parameter(Mandatory = $false, HelpMessage = "Switch parmeter to filter out Policy Effect Manual")]
+    [Parameter(Mandatory = $false, HelpMessage = "Switch parameter to filter out Policy Effect Manual")]
     [switch] $ExcludeManualPolicyEffect,
 
     [Parameter(Mandatory = $false, HelpMessage = "Filter by Policy Effect `"deployifnotexists`" and `"modify`" and compliance status `"NonCompliant`"")]
@@ -135,7 +135,7 @@ $account = Set-AzCloudTenantSubscription -Cloud $pacEnvironment.cloud -TenantId 
 # Telemetry
 if ($pacEnvironment.telemetryEnabled) {
     Write-Information "Telemetry is enabled"
-    [Microsoft.Azure.Common.Authentication.AzureSession]::ClientFactory.AddUserAgent("pid-f464b017-898b-4156-9da5-af932831fa2f") 
+    Submit-EPACTelemetry -Cuapid "pid-f464b017-898b-4156-9da5-af932831fa2f" -DeploymentRootScope $pacEnvironment.deploymentRootScope
 }
 else {
     Write-Information "Telemetry is disabled"

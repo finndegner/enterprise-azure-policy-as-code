@@ -16,9 +16,6 @@
 .PARAMETER Interactive
     Use switch to indicate interactive use
 
-.PARAMETER IgnoreScopeLockedErrors
-    Ignore errors raised by locked scopes
-
 .EXAMPLE
     Deploy-PolicyPlan.ps1 -PacEnvironmentSelector "dev" -DefinitionsRootFolder "C:\git\policy-as-code\Definitions" -InputFolder "C:\git\policy-as-code\Output" -Interactive
     Deploys Policy resources from a plan file.
@@ -47,10 +44,7 @@ param (
     [string] $InputFolder,
 
     [Parameter(HelpMessage = "Use switch to indicate interactive use")]
-    [switch] $Interactive,
-
-    [Parameter(HelpMessage = "Ignore errors raised by locked scopes")]
-    [switch] $IgnoreScopeLockedErrors
+    [switch] $Interactive
 )
 
 $PSDefaultParameterValues = @{
@@ -64,12 +58,12 @@ Clear-Variable -Name epacInfoStream -Scope global -Force -ErrorAction SilentlyCo
 
 $InformationPreference = "Continue"
 $pacEnvironment = Select-PacEnvironment $PacEnvironmentSelector -DefinitionsRootFolder $DefinitionsRootFolder -InputFolder $InputFolder -Interactive $Interactive
-$null = Set-AzCloudTenantSubscription -Cloud $pacEnvironment.cloud -TenantId $pacEnvironment.tenantId -Interactive $pacEnvironment.interactive
+$null = Set-AzCloudTenantSubscription -Cloud $pacEnvironment.cloud -TenantId $pacEnvironment.tenantId -Interactive $pacEnvironment.interactive -DeploymentDefaultContext $pacEnvironment.defaultContext
 
 # Telemetry
 if ($pacEnvironment.telemetryEnabled) {
     Write-Information "Telemetry is enabled"
-    [Microsoft.Azure.Common.Authentication.AzureSession]::ClientFactory.AddUserAgent("pid-fe9ff1e8-5521-4b9d-ab1d-84e15447565e") 
+    Submit-EPACTelemetry -Cuapid "pid-fe9ff1e8-5521-4b9d-ab1d-84e15447565e" -DeploymentRootScope $pacEnvironment.deploymentRootScope
 }
 else {
     Write-Information "Telemetry is disabled"
@@ -80,7 +74,7 @@ $planFile = $pacEnvironment.policyPlanInputFile
 $plan = Get-DeploymentPlan -PlanFile $planFile
 if ($null -eq $plan) {
     Write-Warning "***************************************************************************************************"
-    Write-Warning "Plan does not exist, skipping Policy resource deployment."
+    Write-Warning "Plan file '$planFile' does not exist, skipping Policy resource deployment."
     Write-Warning "***************************************************************************************************"
     Write-Warning ""
 }
@@ -91,293 +85,136 @@ else {
     Write-Information "Plan created on $($plan.createdOn)."
     Write-Information "***************************************************************************************************"
 
-    [hashtable] $newAssignments = ConvertTo-HashTable $plan.assignments.new
-    [hashtable] $replaceAssignments = ConvertTo-HashTable $plan.assignments.replace
-    [hashtable] $updateAssignments = ConvertTo-HashTable $plan.assignments.update
-
     #region delete exemptions, assignment, definitions
 
-    $exemptions = ConvertTo-HashTable $plan.exemptions.delete
-    if ($exemptions.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.exemptions.delete
+    $table += ConvertTo-HashTable $plan.exemptions.replace
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Delete orphaned, deleted, and expired Exemptions ($($exemptions.psbase.Count))"
+        Write-Information "Delete orphaned, deleted, expired and replaced Exemptions ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $exemptions.Keys) {
-            $exemption = $exemptions[$id]
-            Write-Information $exemption.displayName
-            try {
-                $null = Remove-AzPolicyExemption -Id $id -Force -ErrorAction Stop
-            }
-            catch {
-                if ($IgnoreScopeLockedErrors -and $_.Exception.Message -match "^ScopeLocked") {
-                    Write-Warning "Scope is locked - error output: $($_.Exception.Message)"
-                }
-                else {
-                    throw $_
-                }
-            }
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Write-Information "$($entry.displayName) - $($id)"
+            Remove-AzResourceByIdRestMethod -Id $id -ApiVersion $pacEnvironment.apiVersions.policyExemptions
         }
     }
 
-    $exemptions = ConvertTo-HashTable $plan.exemptions.replace
-    if ($exemptions.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.assignments.delete
+    $table += ConvertTo-HashTable $plan.assignments.replace
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Delete replaced Exemptions ($($exemptions.psbase.Count))"
+        Write-Information "Delete removed and replaced Assignments ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $exemptions.Keys) {
-            $exemption = $exemptions[$id]
-            Write-Information $exemption.displayName
-            try {
-                $null = Remove-AzPolicyExemption -Id $id -Force -ErrorAction Stop
-            }
-            catch {
-                if ($IgnoreScopeLockedErrors -and $_.Exception.Message -match "^ScopeLocked") {
-                    Write-Warning "Scope is locked - error output: $($_.Exception.Message)"
-                }
-                else {
-                    throw $_
-                }
-            }
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Write-Information "$($entry.displayName) - $($id)"
+            Remove-AzResourceByIdRestMethod -Id $id -ApiVersion $pacEnvironment.apiVersions.policyAssignments
         }
     }
 
-    $assignments = ConvertTo-HashTable $plan.assignments.delete
-    if ($assignments.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.policySetDefinitions.delete
+    $table += ConvertTo-HashTable $plan.policySetDefinitions.replace
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Delete removed Assignments ($($assignments.psbase.Count))"
+        Write-Information "Delete removed and replaced Policy Sets ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $assignments.Keys) {
-            $assignment = $assignments[$id]
-            Write-Information $assignment.displayName
-            $null = Remove-AzPolicyAssignment -Id $id
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Write-Information "$($entry.displayName) - $($id)"
+            Remove-AzResourceByIdRestMethod -Id $id -ApiVersion $pacEnvironment.apiVersions.policySetDefinitions
         }
     }
 
-    $assignments = $replaceAssignments
-    if ($assignments.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.policyDefinitions.replace
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Delete replaced Assignments ($($assignments.psbase.Count))"
+        Write-Information "Delete replaced Policies ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $assignments.Keys) {
-            $assignment = $assignments[$id]
-            Write-Information $assignment.displayName
-            $null = Remove-AzPolicyAssignment -Id $id
-        }
-    }
-
-    $policySetDefinitions = ConvertTo-HashTable $plan.policySetDefinitions.delete
-    if ($policySetDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Delete removed Policy Sets ($($policySetDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policySetDefinitions.Keys) {
-            $policySetDefinition = $policySetDefinitions[$id]
-            Write-Information $policySetDefinition.displayName
-            $null = Remove-AzPolicySetDefinition -Id $id -Force
-        }
-    }
-
-    $policySetDefinitions = ConvertTo-HashTable $plan.policySetDefinitions.replace
-    if ($policySetDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Delete replaced Policy Sets ($($policySetDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policySetDefinitions.Keys) {
-            $policySetDefinition = $policySetDefinitions[$id]
-            Write-Information $policySetDefinition.displayName
-            $null = Remove-AzPolicySetDefinition -Id $id -Force
-        }
-    }
-
-    $policyDefinitions = ConvertTo-HashTable $plan.policyDefinitions.replace
-    if ($policyDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Delete replaced Policies ($($policyDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policyDefinitions.Keys) {
-            $policyDefinition = $policyDefinitions[$id]
-            Write-Information $policyDefinition.displayName
-            $null = Remove-AzPolicyDefinition -Id $id -Force
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Write-Information "$($entry.displayName) - $($id)"
+            Remove-AzResourceByIdRestMethod -Id $id -ApiVersion $pacEnvironment.apiVersions.policyDefinitions
         }
     }
 
     #endregion
 
-    #region create and update definitions
-
-    $policyDefinitions = ConvertTo-HashTable $plan.policyDefinitions.new
-    if ($policyDefinitions.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.policyDefinitions.new
+    $table += ConvertTo-HashTable $plan.policyDefinitions.replace
+    $table += ConvertTo-HashTable $plan.policyDefinitions.update
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Create new Policies ($($policyDefinitions.psbase.Count))"
+        Write-Information "Create and update Policies ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policyDefinitions.Keys) {
-            $definitionObj = $policyDefinitions[$id]
-            Set-AzPolicyDefinitionRestMethod -Definition $definitionObj
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Set-AzPolicyDefinitionRestMethod -Definition $entry -ApiVersion $pacEnvironment.apiVersions.policyDefinitions
         }
     }
 
-    $policyDefinitions = ConvertTo-HashTable $plan.policyDefinitions.replace
-    if ($policyDefinitions.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.policySetDefinitions.new
+    $table += ConvertTo-HashTable $plan.policySetDefinitions.replace
+    $table += ConvertTo-HashTable $plan.policySetDefinitions.update
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Recreate replaced Policies ($($policyDefinitions.psbase.Count))"
+        Write-Information "Create and update Policy Sets ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policyDefinitions.Keys) {
-            $definitionObj = $policyDefinitions[$id]
-            Set-AzPolicyDefinitionRestMethod -Definition $definitionObj
-        }
-    }
-
-    $policyDefinitions = ConvertTo-HashTable $plan.policyDefinitions.update
-    if ($policyDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Update Policies ($($policyDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policyDefinitions.Keys) {
-            $definitionObj = $policyDefinitions[$id]
-            Set-AzPolicyDefinitionRestMethod -Definition $definitionObj
-        }
-    }
-
-    $policySetDefinitions = ConvertTo-HashTable $plan.policySetDefinitions.new
-    if ($policySetDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Create new Policy Sets ($($policySetDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policySetDefinitions.Keys) {
-            $definitionObj = $policySetDefinitions[$id]
-            Set-AzPolicySetDefinitionRestMethod -Definition $definitionObj
-        }
-    }
-
-    $policySetDefinitions = ConvertTo-HashTable $plan.policySetDefinitions.replace
-    if ($policySetDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Recreate replaced Policy Sets  ($($policySetDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policySetDefinitions.Keys) {
-            $definitionObj = $policySetDefinitions[$id]
-            Set-AzPolicySetDefinitionRestMethod -Definition $definitionObj
-        }
-    }
-
-    $policySetDefinitions = ConvertTo-HashTable $plan.policySetDefinitions.update
-    if ($policySetDefinitions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Update Policy Sets ($($policySetDefinitions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($id in $policySetDefinitions.Keys) {
-            $definitionObj = $policySetDefinitions[$id]
-            Set-AzPolicySetDefinitionRestMethod -Definition $definitionObj
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Set-AzPolicySetDefinitionRestMethod -Definition $entry -ApiVersion $pacEnvironment.apiVersions.policySetDefinitions
         }
     }
 
     # Policy Sets are updated, can now delete the obsolete Policies
-    $policyDefinitions = ConvertTo-HashTable $plan.policyDefinitions.delete
-    if ($policyDefinitions.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.policyDefinitions.delete
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Delete Policies ($($policyDefinitions.psbase.Count))"
+        Write-Information "Delete Policies ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-
-        foreach ($policyDefinitionName in $policyDefinitions.Keys) {
-            $policyDefinition = $policyDefinitions[$policyDefinitionName]
-            Write-Information $policyDefinition.displayName
-            $null = Remove-AzPolicyDefinition -Id $policyDefinition.id -Force
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Write-Information $entry.displayName
+            Remove-AzResourceByIdRestMethod -Id $id -ApiVersion $pacEnvironment.apiVersions.policyDefinitions
         }
     }
 
-
-
-    #endregion
-
-    #region create and update assignments
-
-    if ($newAssignments.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.assignments.new
+    $table += ConvertTo-HashTable $plan.assignments.replace
+    $table += ConvertTo-HashTable $plan.assignments.update
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Create new Assignments ($($newAssignments.psbase.Count))"
+        Write-Information "Create and update Assignments ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        $currentDisplayName = "-"
-        $newAssignments.Values | Sort-Object -Property { $_.displayName } | ForEach-Object -Process {
-            $currentDisplayName = Set-AzPolicyAssignmentRestMethod -Assignment $_ -CurrentDisplayName $currentDisplayName
+        foreach ($id in $table.Keys) {
+            $entry = $table.$id
+            Set-AzPolicyAssignmentRestMethod -Assignment $entry -ApiVersion $pacEnvironment.apiVersions.policyAssignments
         }
     }
 
-    if ($replaceAssignments.psbase.Count -gt 0) {
+    $table = ConvertTo-HashTable $plan.exemptions.new
+    $table += ConvertTo-HashTable $plan.exemptions.replace
+    $table += ConvertTo-HashTable $plan.exemptions.update
+    if ($table.psbase.Count -gt 0) {
         Write-Information ""
         Write-Information "==================================================================================================="
-        Write-Information "Recreate replaced Assignments ($($replaceAssignments.psbase.Count))"
+        Write-Information "Create and update Exemptions ($($table.psbase.Count))"
         Write-Information "---------------------------------------------------------------------------------------------------"
-        $currentDisplayName = "-"
-        $replaceAssignments.Values | Sort-Object -Property { $_.displayName } | ForEach-Object -Process {
-            $currentDisplayName = Set-AzPolicyAssignmentRestMethod -Assignment $_ -CurrentDisplayName $currentDisplayName
+        foreach ($exemptionId in $table.Keys) {
+            $entry = $table.$exemptionId
+            Set-AzPolicyExemptionRestMethod -ExemptionObj $entry -ApiVersion $pacEnvironment.apiVersions.policyExemptions
         }
     }
-
-    if ($updateAssignments.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Update Assignments ($($updateAssignments.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        $currentDisplayName = "-"
-        $updateAssignments.Values | Sort-Object -Property { $_.displayName } | ForEach-Object -Process {
-            $currentDisplayName = Set-AzPolicyAssignmentRestMethod -Assignment $_ -CurrentDisplayName $currentDisplayName
-        }
-    }
-
-    #endregion
-
-    #region Exemptions
-
-    $exemptions = ConvertTo-HashTable $plan.exemptions.new
-    if ($exemptions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Create new Exemptions ($($exemptions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($exemptionId in $exemptions.Keys) {
-            $exemption = $exemptions.$exemptionId
-            Set-AzPolicyExemptionRestMethod -ExemptionObj $exemption
-        }
-    }
-
-    $exemptions = ConvertTo-HashTable $plan.exemptions.replace
-    if ($exemptions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Create replaced Exemptions ($($exemptions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($exemptionId in $exemptions.Keys) {
-            $exemption = $exemptions.$exemptionId
-            Set-AzPolicyExemptionRestMethod -ExemptionObj $exemption
-        }
-    }
-
-    $exemptions = (ConvertTo-HashTable $plan.exemptions.update)
-    if ($exemptions.psbase.Count -gt 0) {
-        Write-Information ""
-        Write-Information "==================================================================================================="
-        Write-Information "Update Exemptions ($($exemptions.psbase.Count))"
-        Write-Information "---------------------------------------------------------------------------------------------------"
-        foreach ($exemptionId in $exemptions.Keys) {
-            $exemption = $exemptions.$exemptionId
-            Set-AzPolicyExemptionRestMethod -ExemptionObj $exemption
-        }
-    }
-
-    #endregion
-
+    Write-Information ""
+    Write-Information "***************************************************************************************************"
+    Write-Information "Policy resources deployed from plan in file '$planFile'"
+    Write-Information "***************************************************************************************************"
 }

@@ -1,7 +1,7 @@
 New-Item .\Module\EnterprisePolicyAsCode\internal\functions -ItemType Directory -Force
 New-Item .\Module\EnterprisePolicyAsCode\functions -ItemType Directory -Force
 
-Copy-Item -Path .\Scripts\Helpers\*.ps1 -Destination .\Module\EnterprisePolicyAsCode\internal\functions -Force -Exclude Add-HelperScripts.ps1
+Get-ChildItem -Path .\Scripts\Helpers\*.ps1 -Recurse -File -Exclude Add-HelperScripts.ps1 | Copy-Item -Destination .\Module\EnterprisePolicyAsCode\internal\functions
 
 # Deploy Functions
 
@@ -30,6 +30,16 @@ $functionNames = (Get-ChildItem .\Scripts\CloudAdoptionFramework\* -File -Includ
 $functionNames | Foreach-Object {
     "function $_ {" | Set-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
     Get-Content .\Scripts\CloudAdoptionFramework\$_.ps1 | Where-Object { $_ -notmatch "^\." -and $_ -notmatch "^#Requires" } | Add-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
+    "}" | Add-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
+}
+
+# Hydration Kit
+
+$functionNames = (Get-ChildItem .\Scripts\HydrationKit\* -File -Include *.ps1).BaseName
+
+$functionNames | Foreach-Object {
+    "function $_ {" | Set-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
+    Get-Content .\Scripts\HydrationKit\$_.ps1 | Where-Object { $_ -notmatch "^#Requires" } | Add-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
     "}" | Add-Content ".\Module\EnterprisePolicyAsCode\functions\$_.ps1" -Force
 }
 
